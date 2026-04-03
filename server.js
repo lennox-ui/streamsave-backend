@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import cors from 'cors';
+import axios from 'axios';
 import ytdl from '@distube/ytdl-core';
 import instagramGetUrl from 'instagram-url-direct';
 
@@ -15,6 +16,33 @@ async function startServer() {
     origin: "*"
   }));
   app.use(express.json());
+
+  // Download Proxy Route
+  app.get('/api/download', async (req, res) => {
+    const { url, filename } = req.query;
+    if (!url) return res.status(400).send('URL is required');
+
+    try {
+      const response = await axios({
+        method: 'get',
+        url: url,
+        responseType: 'stream',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://www.youtube.com/'
+        }
+      });
+
+      const cleanFilename = (filename || 'download').replace(/[^a-z0-9.]/gi, '_');
+      res.setHeader('Content-Disposition', `attachment; filename="${cleanFilename}"`);
+      res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+      
+      response.data.pipe(res);
+    } catch (error) {
+      console.error('Download proxy error:', error.message);
+      res.status(500).send('Failed to proxy download');
+    }
+  });
 
   // API Routes
   app.post('/api/info', async (req, res) => {
